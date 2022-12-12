@@ -28,6 +28,7 @@ def count_parameters(model):
 
 def get_data_transforms(size, isize):
     data_transforms = transforms.Compose([
+        # transforms.Grayscale(num_output_channels=3),
         transforms.ToTensor()
     ])
     gt_transforms = transforms.Compose([
@@ -36,11 +37,13 @@ def get_data_transforms(size, isize):
         transforms.ToTensor()])
     return data_transforms, gt_transforms
     
-def cal_anomaly_map(fs_list, ft_list, out_size=224, amap_mode='mul'):
+def cal_anomaly_map(fs_list, ft_list, device, batch_size=8, out_size=256, amap_mode='mul'):
     if amap_mode == 'mul':
-        anomaly_map = np.ones([out_size, out_size])
+        # anomaly_map = np.ones([out_size, out_size])
+        anomaly_map = torch.ones([batch_size, 1, out_size, out_size]).to(device)
     else:
-        anomaly_map = np.zeros([out_size, out_size])
+        # anomaly_map = np.zeros([out_size, out_size])
+        anomaly_map = torch.zeros([batch_size, 1, out_size, out_size]).to(device)
     a_map_list = []
     for i in range(len(ft_list)):
         fs = fs_list[i]
@@ -50,7 +53,8 @@ def cal_anomaly_map(fs_list, ft_list, out_size=224, amap_mode='mul'):
         a_map = 1 - F.cosine_similarity(fs, ft)
         a_map = torch.unsqueeze(a_map, dim=1)
         a_map = F.interpolate(a_map, size=out_size, mode='bilinear', align_corners=True)
-        a_map = a_map[0, 0, :, :].to('cpu').detach().numpy()
+        # a_map = a_map[0, 0, :, :].to('cpu').detach().numpy()
+        # a_map = a_map[0,0,:,:]
         a_map_list.append(a_map)
         if amap_mode == 'mul':
             anomaly_map *= a_map
@@ -82,6 +86,7 @@ def loss_function(a, b):
     #mse_loss = torch.nn.MSELoss()
     cos_loss = torch.nn.CosineSimilarity()
     loss = 0
+    # for item in len(a):
     loss = torch.mean(1-cos_loss(a.view(a.shape[0],-1),
                                       b.view(b.shape[0],-1)))
     return loss
@@ -107,7 +112,7 @@ def train(args):
     print(args)
     epochs = 200
     learning_rate = 0.005
-    # batch_size = 16
+    # batch_size = 16   
     image_size = 256
         
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -151,6 +156,12 @@ def train(args):
     encoder.eval()
     decoder = de_wide_resnet50_2(pretrained=False)
     decoder = decoder.to(device)
+    
+    
+    encoder = torch.nn.DataParallel(encoder, device_ids=[0, 1])
+    bn = torch.nn.DataParallel(bn, device_ids=[0, 1])
+    decoder = torch.nn.DataParallel(decoder, device_ids=[0, 1])
+    
 
     optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
 
@@ -162,6 +173,12 @@ def train(args):
         # for img, label in train_dataloader:
         for img, aug, anomaly_mask in tqdm(train_dataloader):
             
+            img = torch.reshape(img, (-1, 1, args.img_size, args.img_size))
+            aug = torch.reshape(aug, (-1, 1, args.img_size, args.img_size))
+            anomaly_mask = torch.reshape(anomaly_mask, (-1, 1, args.img_size, args.img_size))
+            
+            # aug = aug.expand(3,*aug.shape[1:])
+            aug = torch.cat([aug, aug, aug], dim=1)
             # img = img.to(device)
             aug = aug.to(device)
             anomaly_mask = anomaly_mask.to(device)
@@ -169,7 +186,7 @@ def train(args):
             inputs = encoder(aug)
             outputs = decoder(bn(inputs))#bn(inputs))
             # loss = loss_fucntion(inputs, outputs)
-            anomaly_map = cal_anomaly_map(inputs, outputs)
+            anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size=args.bs)
             
             loss = loss_function(anomaly_map, anomaly_mask)
             optimizer.zero_grad()
@@ -199,10 +216,36 @@ if __name__ == '__main__':
     parser.add_argument("-img_size", "--img_size", type=float, default=256, help="noise magnitude.")
     parser.add_argument('--experiment_name', default='Disjoint_Distillation', choices=['DRAEM_Denoising_reconstruction, liver, brain, head'], action='store')
     parser.add_argument('--bs', default = 8, action='store', type=int)
+    parser.add_argument('--colorRange', default=100, action='store')
+    parser.add_argument('--threshold', default=200, action='store')
+    parser.add_argument('--number_iterations', default=1, action='store')
+    parser.add_argument('--rejection', default=True, action='store')
+    parser.add_argument('--control_texture', default=False, action='store')
+    parser.add_argument('--cutout', default=False, action='store')
+    
+    parser.add_argument("-nr", "--noise_res", type=float, default=16,  help="noise resolution.")
+    parser.add_argument("-ns", "--noise_std", type=float, default=0.2, help="noise magnitude.")
+    parser.add_argument('--gpu_id', default=['0','1'], action='store', type=str, required=False)
+    
     
     
     args = parser.parse_args()
+    
 
     setup_seed(111)
-    train(args)
+    
+    os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
+    if args.gpu_id is None:
+        gpus = "0"
+        os.environ["CUDA_VISIBLE_DEVICES"]= gpus
+    else:
+        gpus = ""
+        for i in range(len(args.gpu_id)):
+            gpus = gpus + args.gpu_id[i] + ","
+        os.environ["CUDA_VISIBLE_DEVICES"]= gpus[:-1]
+
+    torch.backends.cudnn.enabled = True # make sure to use cudnn for computational performance
+
+    with torch.cuda.device(args.gpu_id):
+        train(args)
 
