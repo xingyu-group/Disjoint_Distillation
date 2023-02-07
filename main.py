@@ -17,10 +17,11 @@ from dataloader_zzx import MVTecDataset, Medical_dataset, MVTecDataset_cross_val
 
 import torch.backends.cudnn as cudnn
 import argparse
-from test import evaluation, visualization, test
+from test import evaluation
 from torch.nn import functional as F
 from torchvision import transforms
 from tqdm import tqdm
+from torchvision.utils import save_image
 
 
 def count_parameters(model):
@@ -40,10 +41,10 @@ def get_data_transforms(size, isize):
 def cal_anomaly_map(fs_list, ft_list, device, batch_size=8, out_size=256, amap_mode='mul'):
     if amap_mode == 'mul':
         # anomaly_map = np.ones([out_size, out_size])
-        anomaly_map = torch.ones([batch_size, 1, out_size, out_size]).to(device)
+        anomaly_map = torch.ones([fs_list[0].shape[0], 1, out_size, out_size]).to(device)
     else:
         # anomaly_map = np.zeros([out_size, out_size])
-        anomaly_map = torch.zeros([batch_size, 1, out_size, out_size]).to(device)
+        anomaly_map = torch.zeros([fs_list[0].shape[0], 1, out_size, out_size]).to(device)
     a_map_list = []
     for i in range(len(ft_list)):
         fs = fs_list[i]
@@ -69,18 +70,6 @@ def setup_seed(seed):
     random.seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-
-# def loss_function(a, b):
-#     #mse_loss = torch.nn.MSELoss()
-#     cos_loss = torch.nn.CosineSimilarity()
-#     loss = 0
-#     for item in range(len(a)):
-#         #print(a[item].shape)
-#         #print(b[item].shape)
-#         #loss += 0.1*mse_loss(a[item], b[item])
-#         loss += torch.mean(1-cos_loss(a[item].view(a[item].shape[0],-1),
-#                                       b[item].view(b[item].shape[0],-1)))
-#     return loss
 
 def loss_function(a, b):
     #mse_loss = torch.nn.MSELoss()
@@ -135,7 +124,7 @@ def train(args):
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
     # train_path = './mvtec/' + _class_ + '/train'
     # test_path = './mvtec/' + _class_
-    ckp_folder = '/home/zhaoxiang/baselines/RD4AD/output'
+    ckp_folder = '/home/zhaoxiang/output'
     ckp_path = os.path.join(ckp_folder, 'last.pth')    
     results_path = os.path.join(ckp_folder, 'results.txt')    
     
@@ -157,14 +146,11 @@ def train(args):
     decoder = de_wide_resnet50_2(pretrained=False)
     decoder = decoder.to(device)
     
-    
     encoder = torch.nn.DataParallel(encoder, device_ids=[0, 1])
     bn = torch.nn.DataParallel(bn, device_ids=[0, 1])
     decoder = torch.nn.DataParallel(decoder, device_ids=[0, 1])
     
-
     optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
-
 
     for epoch in range(epochs):
         bn.train()
@@ -187,6 +173,9 @@ def train(args):
             outputs = decoder(bn(inputs))#bn(inputs))
             # loss = loss_fucntion(inputs, outputs)
             anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size=args.bs)
+            save_image(aug, 'aug.png')
+            save_image(anomaly_mask, 'anomaly_mask.png')
+            save_image(anomaly_map, 'anomaly_map.png')
             
             loss = loss_function(anomaly_map, anomaly_mask)
             optimizer.zero_grad()
@@ -212,14 +201,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     
-    parser.add_argument('--dataset_name', default='hist_DIY', choices=['hist_DIY', 'Brain_MRI', 'CovidX', 'RESC_average'], action='store')
+    parser.add_argument('--dataset_name', default='BraTs_demo', choices=['hist_DIY', 'Brain_MRI', 'CovidX', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument("-img_size", "--img_size", type=float, default=256, help="noise magnitude.")
     parser.add_argument('--experiment_name', default='Disjoint_Distillation', choices=['DRAEM_Denoising_reconstruction, liver, brain, head'], action='store')
     parser.add_argument('--bs', default = 8, action='store', type=int)
     parser.add_argument('--colorRange', default=100, action='store')
     parser.add_argument('--threshold', default=200, action='store')
     parser.add_argument('--number_iterations', default=1, action='store')
-    parser.add_argument('--rejection', default=True, action='store')
+    parser.add_argument('--rejection', default=False, action='store')
     parser.add_argument('--control_texture', default=False, action='store')
     parser.add_argument('--cutout', default=False, action='store')
     
