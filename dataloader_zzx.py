@@ -276,7 +276,7 @@ class MVTecDataset(torch.utils.data.Dataset):
             img = self.transform(img)
             
             gt = Image.open(gt_path)
-            gt = ImageOps.grayscale(gt)
+            # gt = ImageOps.grayscale(gt)
             gt = gt.resize([self.args.img_size, self.args.img_size])
             gt = self.gt_transform(gt)
 
@@ -286,8 +286,7 @@ class MVTecDataset(torch.utils.data.Dataset):
             else:
                 label = 0
                 
-            save = False
-            return img, gt, label, img_path, save
+            return img, gt, label, img_path
         
         
 class MVTecDataset_cross_validation(torch.utils.data.Dataset):

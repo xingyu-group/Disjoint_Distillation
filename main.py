@@ -132,7 +132,7 @@ def train(args):
     test_transform, _ = get_data_transforms(args.img_size, args.img_size)
     train_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='train', dirs = dirs, data_source=args.experiment_name, args = args)
     val_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='test', dirs = dirs, data_source=args.experiment_name, args = args)
-    test_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='test', dirs = dirs, data_source=args.experiment_name, args = args)
+    test_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='test', dirs = dirs, data_source=args.experiment_name, args = args, rgb=True)
     
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size = args.bs, shuffle=True)
     # val_dataloader = torch.utils.data.DataLoader(val_data, batch_size = args.bs, shuffle = False)
@@ -157,6 +157,8 @@ def train(args):
         decoder.train()
         loss_list = []
         # for img, label in train_dataloader:
+        # auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder, test_dataloader, device)
+        
         for img, aug, anomaly_mask in tqdm(train_dataloader):
             
             img = torch.reshape(img, (-1, 1, args.img_size, args.img_size))
@@ -170,9 +172,11 @@ def train(args):
             anomaly_mask = anomaly_mask.to(device)
             
             inputs = encoder(aug)
-            outputs = decoder(bn(inputs))#bn(inputs))
-            # loss = loss_fucntion(inputs, outputs)
+            outputs = decoder(bn(inputs))
+            
             anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size=args.bs)
+            
+            # Visualize the results
             save_image(aug, 'aug.png')
             save_image(anomaly_mask, 'anomaly_mask.png')
             save_image(anomaly_map, 'anomaly_map.png')
@@ -182,13 +186,18 @@ def train(args):
             loss.backward()
             optimizer.step()
             loss_list.append(loss.item())
+            
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
+        
         if (epoch + 1) % 10 == 0:
             auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder, test_dataloader, device)
             print('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}, Pixel Aupro{:.3}'.format(auroc_px, auroc_sp, aupro_px))
+            
+            # save the checkpoints
             torch.save({'bn': bn.state_dict(),
                         'decoder': decoder.state_dict()}, ckp_path)
             
+            # Write the rsults
             with open(results_path, 'a') as f:
                 f.writelines('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}, Pixel Aupro{:.3} \n'.format(auroc_px, auroc_sp, aupro_px))
     return auroc_px, auroc_sp, aupro_px
