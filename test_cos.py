@@ -61,7 +61,7 @@ def cvt2heatmap(gray):
 
 
 
-def evaluation(encoder, bn, decoder, dataloader,device,_class_=None):
+def evaluation(run_name, encoder, bn, decoder, dataloader, device, epoch, _class_=None):
     #_, t_bn = resnet50(pretrained=True)
     #bn.load_state_dict(bn.state_dict())
     bn.eval()
@@ -74,14 +74,31 @@ def evaluation(encoder, bn, decoder, dataloader,device,_class_=None):
     gt_list_sp = []
     pr_list_sp = []
     aupro_list = []
+    
+    results_dir = os.path.join('/home/zhaoxiang/output', run_name)
+    if not os.path.exists(results_dir):
+        os.mkdir(results_dir)
+    count = 0
+    
     with torch.no_grad():
         for img, gt, label, _ in dataloader:
 
+            count += 1
             img = img.to(device)
             inputs = encoder(img)
             outputs = decoder(bn(inputs))
             anomaly_map, _ = cal_anomaly_map(inputs, outputs, img.shape[-1], amap_mode='a')
             anomaly_map = gaussian_filter(anomaly_map, sigma=4)
+            
+            if count % 100 == 0:
+                img_path = os.path.join(results_dir, '{}_img.png'.format(count))
+                gt_path = os.path.join(results_dir, '{}_gt.png'.format(count))
+                a_map_path = os.path.join(results_dir, '{}_a_map_{}.png'.format(count, epoch))
+                cv2.imwrite(img_path, img[0,0,:,:].to('cpu').detach().numpy()*255)
+                cv2.imwrite(gt_path, gt[0,0,:,:].to('cpu').detach().numpy()*255)
+                cv2.imwrite(a_map_path, anomaly_map*255)
+                
+            
             gt[gt > 0.5] = 1
             gt[gt <= 0.5] = 0
             if label.item()!=0:

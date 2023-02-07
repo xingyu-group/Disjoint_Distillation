@@ -17,7 +17,7 @@ from dataloader_zzx import MVTecDataset, Medical_dataset, MVTecDataset_cross_val
 
 import torch.backends.cudnn as cudnn
 import argparse
-from test import evaluation
+from test_cos import evaluation
 from torch.nn import functional as F
 from torchvision import transforms
 from tqdm import tqdm
@@ -107,6 +107,8 @@ def train(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(device)
     main_path = '/home/zhaoxiang/dataset/{}'.format(args.dataset_name)
+    run_name = args.experiment_name
+    
     
     dirs = os.listdir(main_path)
     
@@ -122,9 +124,10 @@ def train(args):
         dirs = [train_dir, test_dir, label_dir]   
 
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
-    # train_path = './mvtec/' + _class_ + '/train'
-    # test_path = './mvtec/' + _class_
-    ckp_folder = '/home/zhaoxiang/output'
+
+    ckp_folder = os.path.join('/home/zhaoxiang/output', run_name)
+    if not os.path.exists(ckp_folder):
+        os.mkdir(ckp_folder)
     ckp_path = os.path.join(ckp_folder, 'last.pth')    
     results_path = os.path.join(ckp_folder, 'results.txt')    
     
@@ -157,7 +160,7 @@ def train(args):
         decoder.train()
         loss_list = []
         # for img, label in train_dataloader:
-        # auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder, test_dataloader, device)
+        # auroc_px, auroc_sp, aupro_px = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
         
         for img, aug, anomaly_mask in tqdm(train_dataloader):
             
@@ -190,7 +193,7 @@ def train(args):
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
         
         if (epoch + 1) % 10 == 0:
-            auroc_px, auroc_sp, aupro_px = evaluation(encoder, bn, decoder, test_dataloader, device)
+            auroc_px, auroc_sp, aupro_px = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
             print('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}, Pixel Aupro{:.3}'.format(auroc_px, auroc_sp, aupro_px))
             
             # save the checkpoints
