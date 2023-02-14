@@ -102,7 +102,7 @@ def train(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(device)
     main_path = '/home/zhaoxiang/dataset/{}'.format(args.dataset_name)
-    run_name = args.experiment_name
+    run_name = args.experiment_name + '_' + args.dataset_name
     
     
     dirs = os.listdir(main_path)
@@ -188,8 +188,8 @@ def train(args):
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
         
         if (epoch + 1) % 10 == 0:
-            auroc_px, auroc_sp, aupro_px = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
-            print('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}, Pixel Aupro{:.3}'.format(auroc_px, auroc_sp, aupro_px))
+            auroc_px, auroc_sp = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+            print('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}'.format(auroc_px, auroc_sp))
             
             # save the checkpoints
             torch.save({'bn': bn.state_dict(),
@@ -197,8 +197,8 @@ def train(args):
             
             # Write the rsults
             with open(results_path, 'a') as f:
-                f.writelines('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}, Pixel Aupro{:.3} \n'.format(auroc_px, auroc_sp, aupro_px))
-    return auroc_px, auroc_sp, aupro_px
+                f.writelines('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}\n'.format(auroc_px, auroc_sp))
+    return auroc_px, auroc_sp
 
 
 
@@ -208,7 +208,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     
-    parser.add_argument('--dataset_name', default='BraTs_demo', choices=['hist_DIY', 'Brain_MRI', 'CovidX', 'RESC_average', 'BraTs'], action='store')
+    parser.add_argument('--dataset_name', default='hist_DIY', choices=['hist_DIY', 'Brain_MRI', 'CovidX', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument("-img_size", "--img_size", type=float, default=256, help="noise magnitude.")
     parser.add_argument('--experiment_name', default='Disjoint_Distillation', choices=['DRAEM_Denoising_reconstruction, liver, brain, head'], action='store')
     parser.add_argument('--bs', default = 8, action='store', type=int)

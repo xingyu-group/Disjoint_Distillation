@@ -101,9 +101,9 @@ def evaluation(run_name, encoder, bn, decoder, dataloader, device, epoch, _class
             
             gt[gt > 0.5] = 1
             gt[gt <= 0.5] = 0
-            if label.item()!=0:
-                aupro_list.append(compute_pro(gt.squeeze(0).cpu().numpy().astype(int),
-                                              anomaly_map[np.newaxis,:,:]))
+            # if label.item()!=0:
+            #     aupro_list.append(compute_pro(gt.squeeze(0).cpu().numpy().astype(int),
+            #                                   anomaly_map[np.newaxis,:,:]))
             gt_list_px.extend(gt.cpu().numpy().astype(int).ravel())
             pr_list_px.extend(anomaly_map.ravel())
             gt_list_sp.append(np.max(gt.cpu().numpy().astype(int)))
@@ -121,7 +121,7 @@ def evaluation(run_name, encoder, bn, decoder, dataloader, device, epoch, _class
 
         auroc_px = round(roc_auc_score(gt_list_px, pr_list_px), 3)
         auroc_sp = round(roc_auc_score(gt_list_sp, pr_list_sp), 3)
-    return auroc_px, auroc_sp, round(np.mean(aupro_list),3)
+    return auroc_px, auroc_sp #, round(np.mean(aupro_list),3)
 
 def test(_class_):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
