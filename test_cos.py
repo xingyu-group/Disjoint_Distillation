@@ -71,6 +71,11 @@ def dice(a, b):
 
     return num.float() / den_float
 
+def min_max_norm(arr):
+    min_val = arr.min()
+    max_val = arr.max()
+    normalized = (arr - min_val) * 255 / (max_val - min_val)
+    return normalized
 
 def evaluation(run_name, encoder, bn, decoder, dataloader, device, epoch, _class_=None):
     #_, t_bn = resnet50(pretrained=True)
@@ -160,7 +165,7 @@ def evaluation_AP_DICE(run_name, encoder, bn, decoder, dataloader, device, epoch
                 a_map_path = os.path.join(results_dir, '{}_a_map_{}.png'.format(count, epoch))
                 cv2.imwrite(img_path, img[0,0,:,:].to('cpu').detach().numpy()*255)
                 cv2.imwrite(gt_path, gt[0,0,:,:].to('cpu').detach().numpy()*255)
-                cv2.imwrite(a_map_path, anomaly_map*255)
+                cv2.imwrite(a_map_path, min_max_norm(anomaly_map))
                 
             
             gt[gt > 0.5] = 1

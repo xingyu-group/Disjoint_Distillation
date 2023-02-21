@@ -151,10 +151,11 @@ def train(args):
     optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
 
     for epoch in range(epochs):
+        # auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+        
         bn.train()
         decoder.train()
         loss_list = []
-        # auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
         
         for img, aug, anomaly_mask in tqdm(train_dataloader):
             
@@ -198,7 +199,7 @@ def train(args):
             
             # Write the rsults
             with open(results_path, 'a') as f:
-                f.writelines('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(auroc_px, auroc_sp, ap, dice))
+                f.writelines('Epoch:{}, Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(epoch, auroc_px, auroc_sp, ap, dice))
     return auroc_px, auroc_sp, ap, dice
 
 
