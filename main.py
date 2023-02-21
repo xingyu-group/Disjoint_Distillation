@@ -218,6 +218,7 @@ if __name__ == '__main__':
     parser.add_argument('--rejection', default=False, action='store')
     parser.add_argument('--control_texture', default=False, action='store')
     parser.add_argument('--cutout', default=False, action='store')
+    parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['Gaussian_noise', 'Cutpaste', 'random_shape', 'RESC_average', 'BraTs'], action='store')
     
     parser.add_argument("-nr", "--noise_res", type=float, default=16,  help="noise resolution.")
     parser.add_argument("-ns", "--noise_std", type=float, default=0.2, help="noise magnitude.")

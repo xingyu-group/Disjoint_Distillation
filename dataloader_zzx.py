@@ -51,7 +51,7 @@ def add_Gaussian_noise(x, noise_res, noise_std, img_size):
     res = x + ns
     
     res = res.squeeze(dim = 0)
-    return res
+    return res, ns, mask
 
 
 def cutpaste_transform(size,isize):
@@ -220,11 +220,6 @@ class MVTecDataset(torch.utils.data.Dataset):
             if self.args.rejection: # too generate the anomaly on each image
                 while colorJitter_gt.sum() == 0:
                     colorJitter_img, colorJitter_gt = colorJitterRandom(img_numpy, self.args, colorRange=self.args.colorRange, threshold=self.args.threshold)
-                
-            
-            # distortion_img = distortion(np.array(img))
-            # cv2.imwrite('distortion.png', distortion_img)
-            
             
             # distortion_img = np.expand_dims(distortion_img, axis=2)
             blackStrip_img = np.expand_dims(blackStrip_img, axis=2)
@@ -243,14 +238,24 @@ class MVTecDataset(torch.utils.data.Dataset):
             # img = self.transform(img)
             
             """ Gaussian Noise"""
-            Gaussian_img = add_Gaussian_noise(org, self.args.noise_res, self.args.noise_std, self.args.img_size)  
+            Gaussian_img, pseudo_anomaly, pseudo_anomaly_mask = add_Gaussian_noise(org, self.args.noise_res, self.args.noise_std, self.args.img_size)  
 
             # img_list = [Gaussian_img, cut_img, distortion_img, blackStrip_img, randomShape_img, randomShapeLow_img]
             # img_list = [blackStrip_img, randomShape_img]
-            img_list = [colorJitter_img]
+            
+            # determine which augmentation method to use
+            if self.args.augmentation_method == 'random_shape':
+                img_list = [colorJitter_img]
+                gt_list = [colorJitter_gt]
+            elif self.args.augmentation_method == 'gaussian_noise':
+                img_list = [Gaussian_img]
+            
+                # 关于gt是用mask还是用绝对值，取决于噪声是全局噪声还是局部噪声。
+                gt_list = pseudo_anomaly
+                # gt_list = pseudo_anomaly_mask
+                
             # gt_list = [cut_gt, blackStrip_gt, randomShape_gt, randomShapeLow_gt]
             # gt_list = [blackStrip_gt, randomShape_gt]
-            gt_list = [colorJitter_gt]
             gt_list = [(np.where(x > 0, 255, 0)).astype(np.uint8) for x in gt_list]
             
             # gt_list.append(cut_gt)
@@ -263,7 +268,6 @@ class MVTecDataset(torch.utils.data.Dataset):
             
             org_tensor = (torch.unsqueeze(org, dim=0)).repeat(len(img_list), 1, 1, 1)
             return org_tensor, aug_tensor, gt_tensor
-            # return org_tensor, aug_tensor
         
         else:
             img_path, gt_path= self.img_paths[idx], self.gt_paths[idx]
