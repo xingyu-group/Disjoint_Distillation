@@ -247,16 +247,22 @@ class MVTecDataset(torch.utils.data.Dataset):
             if self.args.augmentation_method == 'random_shape':
                 img_list = [colorJitter_img]
                 gt_list = [colorJitter_gt]
+                gt_list = [(np.where(x > 0, 255, 0)).astype(np.uint8) for x in gt_list]
+                
             elif self.args.augmentation_method == 'gaussian_noise':
                 img_list = [Gaussian_img]
             
                 # 关于gt是用mask还是用绝对值，取决于噪声是全局噪声还是局部噪声。
                 gt_list = pseudo_anomaly
+                gt_list = [(x * 255).numpy().astype(np.uint8) for x in gt_list]
+                
+                # 如果是hard label的话
                 # gt_list = pseudo_anomaly_mask
+                # gt_list = [(np.where(x > 0, 255, 0)).astype(np.uint8) for x in gt_list]
+                
                 
             # gt_list = [cut_gt, blackStrip_gt, randomShape_gt, randomShapeLow_gt]
             # gt_list = [blackStrip_gt, randomShape_gt]
-            gt_list = [(np.where(x > 0, 255, 0)).astype(np.uint8) for x in gt_list]
             
             # gt_list.append(cut_gt)
             gt_list = [self.transform(x) for x in gt_list]
