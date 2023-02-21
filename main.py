@@ -102,7 +102,7 @@ def train(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(device)
     main_path = '/home/zhaoxiang/dataset/{}'.format(args.dataset_name)
-    run_name = args.experiment_name + '_' + args.dataset_name
+    run_name = args.experiment_name + '_' + args.dataset_name + '_' + args.augmentation_method
     
     
     dirs = os.listdir(main_path)
@@ -208,7 +208,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     
     
-    parser.add_argument('--dataset_name', default='hist_DIY', choices=['hist_DIY', 'Brain_MRI', 'CovidX', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument("-img_size", "--img_size", type=float, default=256, help="noise magnitude.")
     parser.add_argument('--experiment_name', default='Disjoint_Distillation', choices=['DRAEM_Denoising_reconstruction, liver, brain, head'], action='store')
     parser.add_argument('--bs', default = 8, action='store', type=int)
@@ -218,6 +217,9 @@ if __name__ == '__main__':
     parser.add_argument('--rejection', default=False, action='store')
     parser.add_argument('--control_texture', default=False, action='store')
     parser.add_argument('--cutout', default=False, action='store')
+    
+    # take care every time
+    parser.add_argument('--dataset_name', default='Brain_MRI', choices=['hist_DIY', 'Brain_MRI', 'CovidX', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['Gaussian_noise', 'Cutpaste', 'random_shape', 'RESC_average', 'BraTs'], action='store')
     
     parser.add_argument("-nr", "--noise_res", type=float, default=16,  help="noise resolution.")
