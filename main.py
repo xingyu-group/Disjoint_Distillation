@@ -152,7 +152,7 @@ def train(args):
     if args.resume_training:
         bn.load_state_dict(torch.load(ckp_path)['bn'])
         decoder.load_state_dict(torch.load(ckp_path)['decoder'])
-        last_epoch = torch.load(ckp_path)['last_epoch']
+        # last_epoch = torch.load(ckp_path)['last_epoch']
         
     optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
 
