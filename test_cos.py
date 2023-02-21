@@ -21,7 +21,7 @@ from matplotlib.ticker import NullFormatter
 from scipy.spatial.distance import pdist
 import matplotlib
 import pickle
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, precision_score, recall_score
 from tqdm import tqdm
 
 
@@ -186,6 +186,9 @@ def evaluation_AP_DICE(run_name, encoder, bn, decoder, dataloader, device, epoch
             i += y_.numel()
             
         ap = average_precision_score(y_true_, y_pred_)
+        
+        # precision = precision_score(y_true_, y_pred_)
+        # recall = recall_score(y_true_, y_pred_)
         
         # compute dice
         dice_thresholds = [x / 1000 for x in range(1000)] if threshold is None else [threshold]

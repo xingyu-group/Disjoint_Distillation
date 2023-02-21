@@ -148,9 +148,15 @@ def train(args):
     bn = torch.nn.DataParallel(bn, device_ids=[0, 1])
     decoder = torch.nn.DataParallel(decoder, device_ids=[0, 1])
     
+    last_epoch = 0
+    if args.resume_training:
+        bn.load_state_dict(torch.load(ckp_path)['bn'])
+        decoder.load_state_dict(torch.load(ckp_path)['decoder'])
+        last_epoch = torch.load(ckp_path)['last_epoch']
+        
     optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
 
-    for epoch in range(epochs):
+    for epoch in range(last_epoch, epochs):
         # auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
         
         bn.train()
@@ -195,7 +201,8 @@ def train(args):
             
             # save the checkpoints
             torch.save({'bn': bn.state_dict(),
-                        'decoder': decoder.state_dict()}, ckp_path)
+                        'decoder': decoder.state_dict(),
+                        'last_epoch': epoch}, ckp_path)
             
             # Write the rsults
             with open(results_path, 'a') as f:
@@ -223,6 +230,7 @@ if __name__ == '__main__':
     # take care every time
     parser.add_argument('--dataset_name', default='BraTsDemo', choices=['hist_DIY', 'BraTs', 'BraTsDemo', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['gaussianNoise', 'Cutpaste', 'randomShape', 'RESC_average', 'BraTs'], action='store')
+    parser.add_argument('--resume_training', default= True, action='store')
     
     parser.add_argument("-nr", "--noise_res", type=float, default=16,  help="noise resolution.")
     parser.add_argument("-ns", "--noise_std", type=float, default=0.2, help="noise magnitude.")
