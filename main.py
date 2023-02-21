@@ -219,13 +219,19 @@ if __name__ == '__main__':
     parser.add_argument('--cutout', default=False, action='store')
     
     # take care every time
-    parser.add_argument('--dataset_name', default='Brain_MRI', choices=['hist_DIY', 'Brain_MRI', 'CovidX', 'RESC_average', 'BraTs'], action='store')
+    parser.add_argument('--dataset_name', default='BraTs', choices=['hist_DIY', 'BraTs', 'CovidX', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['Gaussian_noise', 'Cutpaste', 'random_shape', 'RESC_average', 'BraTs'], action='store')
     
     parser.add_argument("-nr", "--noise_res", type=float, default=16,  help="noise resolution.")
     parser.add_argument("-ns", "--noise_std", type=float, default=0.2, help="noise magnitude.")
     parser.add_argument('--gpu_id', default=['0','1'], action='store', type=str, required=False)
     
+    """TODOs
+    1. Train with soft label (hard/soft label difference)
+    2. Adding the computation of average accuracy
+    3. Adding the computation of idea dice
+    4. Other augmentation methods?
+    """
     
     
     args = parser.parse_args()
