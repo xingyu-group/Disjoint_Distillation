@@ -230,7 +230,7 @@ if __name__ == '__main__':
     # take care every time
     parser.add_argument('--dataset_name', default='BraTsDemo', choices=['hist_DIY', 'BraTs', 'BraTsDemo', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['gaussianNoise', 'Cutpaste', 'randomShape', 'RESC_average', 'BraTs'], action='store')
-    parser.add_argument('--resume_training', default= True, action='store')
+    parser.add_argument('--resume_training', default= False, action='store')
     
     parser.add_argument("-nr", "--noise_res", type=float, default=16,  help="noise resolution.")
     parser.add_argument("-ns", "--noise_std", type=float, default=0.2, help="noise magnitude.")

@@ -159,6 +159,9 @@ def evaluation_AP_DICE(run_name, encoder, bn, decoder, dataloader, device, epoch
             anomaly_map, _ = cal_anomaly_map(inputs, outputs, img.shape[-1], amap_mode='a')
             anomaly_map = gaussian_filter(anomaly_map, sigma=4)
             
+            cv2.imwrite('eval_img.png', img[0,0,:,:].to('cpu').detach().numpy()*255)
+            cv2.imwrite('eval_gt.png', gt[0,0,:,:].to('cpu').detach().numpy()*255)
+            cv2.imwrite('eval_pred.png', min_max_norm(anomaly_map))
             if count % 100 == 0:
                 img_path = os.path.join(results_dir, '{}_img.png'.format(count))
                 gt_path = os.path.join(results_dir, '{}_gt.png'.format(count))
@@ -200,7 +203,7 @@ def evaluation_AP_DICE(run_name, encoder, bn, decoder, dataloader, device, epoch
         ax.set_xlabel('Recall')
 
         #display plot
-        plt.savefig('precision_recall_curve.png')
+        plt.savefig('precision_recall_curve')
 
         
         # compute dice
