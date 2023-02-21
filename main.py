@@ -120,7 +120,7 @@ def train(args):
 
     data_transform, gt_transform = get_data_transforms(image_size, image_size)
 
-    ckp_folder = os.path.join('/home/zhaoxiang/output', run_name)
+    ckp_folder = os.path.join('/home/zhaoxiang/output_brain', run_name)
     if not os.path.exists(ckp_folder):
         os.mkdir(ckp_folder)
     ckp_path = os.path.join(ckp_folder, 'last.pth')    
@@ -176,6 +176,7 @@ def train(args):
             
             # Visualize the results
             save_image(aug, 'aug.png')
+            save_image(img, 'img.png')
             save_image(anomaly_mask, 'anomaly_mask.png')
             save_image(anomaly_map, 'anomaly_map.png')
             
@@ -219,8 +220,8 @@ if __name__ == '__main__':
     parser.add_argument('--cutout', default=False, action='store')
     
     # take care every time
-    parser.add_argument('--dataset_name', default='BraTs', choices=['hist_DIY', 'BraTs', 'CovidX', 'RESC_average', 'BraTs'], action='store')
-    parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['Gaussian_noise', 'Cutpaste', 'random_shape', 'RESC_average', 'BraTs'], action='store')
+    parser.add_argument('--dataset_name', default='BraTsDemo', choices=['hist_DIY', 'BraTs', 'BraTsDemo', 'RESC_average', 'BraTs'], action='store')
+    parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['gaussianNoise', 'Cutpaste', 'randomShape', 'RESC_average', 'BraTs'], action='store')
     
     parser.add_argument("-nr", "--noise_res", type=float, default=16,  help="noise resolution.")
     parser.add_argument("-ns", "--noise_std", type=float, default=0.2, help="noise magnitude.")

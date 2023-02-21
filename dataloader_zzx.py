@@ -12,8 +12,9 @@ import random
 import torch.nn.functional as F
 
 from anomaly_sythesis import distortion, blackStrip, randomShape, colorJitterRandom
-
 from cutpaste_sythesis import CutPasteUnion, CutPaste3Way
+
+from torchvision.utils import save_image
 
 # from cutpaste import CutPasteNormal,CutPasteScar, CutPaste3Way, CutPasteUnion, cut_paste_collate_fn, CutPasteBlack, Cut
 
@@ -50,7 +51,10 @@ def add_Gaussian_noise(x, noise_res, noise_std, img_size):
     ns *= mask # Only apply the noise in the foreground.
     res = x + ns
     
-    res = res.squeeze(dim = 0)
+    # save the corresponding images
+    
+    res = res.squeeze(dim = 0)          # squeeze has nothing to do with the image shape
+    
     return res, ns, mask
 
 
@@ -253,8 +257,9 @@ class MVTecDataset(torch.utils.data.Dataset):
                 img_list = [Gaussian_img]
             
                 # 关于gt是用mask还是用绝对值，取决于噪声是全局噪声还是局部噪声。
-                gt_list = pseudo_anomaly
+                gt_list = pseudo_anomaly.squeeze(0)             # squeeze the dimesion to match the code block below
                 gt_list = [(x * 255).numpy().astype(np.uint8) for x in gt_list]
+                
                 
                 # 如果是hard label的话
                 # gt_list = pseudo_anomaly_mask
@@ -273,6 +278,12 @@ class MVTecDataset(torch.utils.data.Dataset):
             aug_tensor = torch.cat(img_list, dim = 0)
             
             org_tensor = (torch.unsqueeze(org, dim=0)).repeat(len(img_list), 1, 1, 1)
+            
+            # save the corresponding image
+            # save_image(aug_tensor, 'test_aug.png')
+            # save_image(gt_tensor, 'test_gt.png')
+            
+            
             return org_tensor, aug_tensor, gt_tensor
         
         else:
