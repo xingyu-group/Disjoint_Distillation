@@ -12,7 +12,7 @@ from dataloader_zzx import MVTecDataset, Medical_dataset, MVTecDataset_cross_val
 
 import torch.backends.cudnn as cudnn
 import argparse
-from test_cos import evaluation
+from test_cos import evaluation, evaluation_AP_DICE
 from torch.nn import functional as F
 from torchvision import transforms
 from tqdm import tqdm
@@ -154,8 +154,7 @@ def train(args):
         bn.train()
         decoder.train()
         loss_list = []
-        # for img, label in train_dataloader:
-        # auroc_px, auroc_sp, aupro_px = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+        # auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
         
         for img, aug, anomaly_mask in tqdm(train_dataloader):
             
@@ -189,8 +188,9 @@ def train(args):
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
         
         if (epoch + 1) % 10 == 0:
-            auroc_px, auroc_sp = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
-            print('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}'.format(auroc_px, auroc_sp))
+            # auroc_px, auroc_sp = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+            auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+            print('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}'.format(auroc_px, auroc_sp, ap, dice))
             
             # save the checkpoints
             torch.save({'bn': bn.state_dict(),
@@ -198,8 +198,8 @@ def train(args):
             
             # Write the rsults
             with open(results_path, 'a') as f:
-                f.writelines('Pixel Auroc:{:.3f}, Sample Auroc{:.3f}\n'.format(auroc_px, auroc_sp))
-    return auroc_px, auroc_sp
+                f.writelines('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(auroc_px, auroc_sp, ap, dice))
+    return auroc_px, auroc_sp, ap, dice
 
 
 

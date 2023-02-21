@@ -21,6 +21,9 @@ from matplotlib.ticker import NullFormatter
 from scipy.spatial.distance import pdist
 import matplotlib
 import pickle
+from sklearn.metrics import average_precision_score
+from tqdm import tqdm
+
 
 def cal_anomaly_map(fs_list, ft_list, out_size=224, amap_mode='mul'):
     if amap_mode == 'mul':
@@ -59,6 +62,14 @@ def cvt2heatmap(gray):
     heatmap = cv2.applyColorMap(np.uint8(gray), cv2.COLORMAP_JET)
     return heatmap
 
+def dice(a, b):
+    num = 2 * (a & b).sum()
+    den = a.sum() + b.sum()
+
+    den_float = den.float()
+    den_float[den == 0] = float("nan")
+
+    return num.float() / den_float
 
 
 def evaluation(run_name, encoder, bn, decoder, dataloader, device, epoch, _class_=None):
@@ -109,19 +120,160 @@ def evaluation(run_name, encoder, bn, decoder, dataloader, device, epoch, _class
             gt_list_sp.append(np.max(gt.cpu().numpy().astype(int)))
             pr_list_sp.append(np.max(anomaly_map))
 
-        #ano_score = (pr_list_sp - np.min(pr_list_sp)) / (np.max(pr_list_sp) - np.min(pr_list_sp))
-        #vis_data = {}
-        #vis_data['Anomaly Score'] = ano_score
-        #vis_data['Ground Truth'] = np.array(gt_list_sp)
-        # print(type(vis_data))
-        # np.save('vis.npy',vis_data)
-        #with open('{}_vis.pkl'.format(_class_), 'wb') as f:
-        #    pickle.dump(vis_data, f, pickle.HIGHEST_PROTOCOL)
-
 
         auroc_px = round(roc_auc_score(gt_list_px, pr_list_px), 3)
         auroc_sp = round(roc_auc_score(gt_list_sp, pr_list_sp), 3)
     return auroc_px, auroc_sp #, round(np.mean(aupro_list),3)
+
+
+def evaluation_AP_DICE(run_name, encoder, bn, decoder, dataloader, device, epoch, threshold=None, _class_=None):
+    bn.eval()
+    decoder.eval()
+    gt_list_px = []
+    pr_list_px = []
+    gt_list_sp = []
+    pr_list_sp = []
+    aupro_list = []
+    y_true_ = torch.zeros(256 * 256 * len(dataloader), dtype=torch.half)
+    y_pred_ = torch.zeros(256 * 256 * len(dataloader), dtype=torch.half)
+    
+    results_dir = os.path.join('/home/zhaoxiang/output_brain', run_name)
+    if not os.path.exists(results_dir):
+        os.mkdir(results_dir)
+    count = 0
+    i = 0
+    
+    
+    with torch.no_grad():
+        for img, gt, label, _ in dataloader:
+
+            count += 1
+            img = img.to(device)
+            inputs = encoder(img)
+            outputs = decoder(bn(inputs))
+            anomaly_map, _ = cal_anomaly_map(inputs, outputs, img.shape[-1], amap_mode='a')
+            anomaly_map = gaussian_filter(anomaly_map, sigma=4)
+            
+            if count % 100 == 0:
+                img_path = os.path.join(results_dir, '{}_img.png'.format(count))
+                gt_path = os.path.join(results_dir, '{}_gt.png'.format(count))
+                a_map_path = os.path.join(results_dir, '{}_a_map_{}.png'.format(count, epoch))
+                cv2.imwrite(img_path, img[0,0,:,:].to('cpu').detach().numpy()*255)
+                cv2.imwrite(gt_path, gt[0,0,:,:].to('cpu').detach().numpy()*255)
+                cv2.imwrite(a_map_path, anomaly_map*255)
+                
+            
+            gt[gt > 0.5] = 1
+            gt[gt <= 0.5] = 0 
+            
+            ## save the results for evaluation metrics
+            gt_list_px.extend(gt.cpu().numpy().astype(int).ravel())
+            pr_list_px.extend(anomaly_map.ravel())
+            gt_list_sp.append(np.max(gt.cpu().numpy().astype(int)))
+            pr_list_sp.append(np.max(anomaly_map))
+            
+            
+            y_ = gt.view(-1)
+            y_hat = torch.from_numpy(anomaly_map).reshape(-1)
+            # Use half precision to save space in RAM. Want to evaluate the whole dataset at once.
+            y_true_[i:i + y_.numel()] = y_.half()
+            y_pred_[i:i + y_hat.numel()] = y_hat.half()
+            i += y_.numel()
+            
+        ap = average_precision_score(y_true_, y_pred_)
+        
+        # compute dice
+        dice_thresholds = [x / 1000 for x in range(1000)] if threshold is None else [threshold]
+        with torch.no_grad():
+            y_true_ = y_true_.to(device)
+            y_pred_ = y_pred_.to(device)
+            dices = [dice(y_true_ > 0.5, y_pred_ > x).cpu().item() for x in tqdm(dice_thresholds)]
+        max_dice, threshold = max(zip(dices, dice_thresholds), key=lambda x: x[0])
+
+        auroc_px = round(roc_auc_score(gt_list_px, pr_list_px), 3)
+        auroc_sp = round(roc_auc_score(gt_list_sp, pr_list_sp), 3)
+    return auroc_px, auroc_sp, ap, max_dice #, round(np.mean(aupro_list),3)
+
+
+
+def eval_anomalies_batched(trainer, dataset, get_scores, batch_size=32, threshold=None, get_y=lambda batch: batch[1],
+                           return_dice=False, filter_cc=False):
+    def dice(a, b):
+        num = 2 * (a & b).sum()
+        den = a.sum() + b.sum()
+
+        den_float = den.float()
+        den_float[den == 0] = float("nan")
+
+        return num.float() / den_float
+
+    y_true_ = torch.zeros(128 * 128 * len(dataset), dtype=torch.half)
+    y_pred_ = torch.zeros(128 * 128 * len(dataset), dtype=torch.half)
+
+    n_batches = int(ceil(len(dataset) / batch_size))
+    i = 0
+    for batch_idx in range(n_batches):
+        batch_items = [dataset[x] for x in
+                       range(batch_idx * batch_size, min((batch_idx + 1) * batch_size, len(dataset)))]
+        collate = torch.utils.data._utils.collate.default_collate
+        batch = collate(batch_items)
+
+        batch_y = get_y(batch)
+
+        with torch.no_grad():
+            anomaly_scores = get_scores(trainer, batch)
+
+        y_ = (batch_y.view(-1) > 0.5)
+        y_hat = anomaly_scores.reshape(-1)
+        # Use half precision to save space in RAM. Want to evaluate the whole dataset at once.
+        y_true_[i:i + y_.numel()] = y_.half()
+        y_pred_[i:i + y_hat.numel()] = y_hat.half()
+        i += y_.numel()
+
+    ap = average_precision_score(y_true_, y_pred_)
+
+    if return_dice:
+        dice_thresholds = [x / 1000 for x in range(1000)] if threshold is None else [threshold]
+        with torch.no_grad():
+            y_true_ = y_true_.to(trainer.device)
+            y_pred_ = y_pred_.to(trainer.device)
+            dices = [dice(y_true_ > 0.5, y_pred_ > x).cpu().item() for x in tqdm(dice_thresholds)]
+        max_dice, threshold = max(zip(dices, dice_thresholds), key=lambda x: x[0])
+
+        if filter_cc:
+            # Now that we have the threshold we can do some filtering and recalculate the Dice
+            i = 0
+            y_true_ = torch.zeros(128 * 128 * len(dataset), dtype=torch.bool)
+            y_pred_ = torch.zeros(128 * 128 * len(dataset), dtype=torch.bool)
+
+            for pd in dataset.patient_datasets:
+                batch_items = [pd[x] for x in range(len(pd))]
+                collate = torch.utils.data._utils.collate.default_collate
+                batch = collate(batch_items)
+
+                batch_y = get_y(batch)
+
+                with torch.no_grad():
+                    anomaly_scores = get_scores(trainer, batch)
+
+                # Do CC filtering:
+                anomaly_scores_bin = anomaly_scores > threshold
+                anomaly_scores_bin = connected_components_3d(anomaly_scores_bin.squeeze(dim=1)).unsqueeze(dim=1)
+
+                y_ = (batch_y.view(-1) > 0.5)
+                y_hat = anomaly_scores_bin.reshape(-1)
+                y_true_[i:i + y_.numel()] = y_
+                y_pred_[i:i + y_hat.numel()] = y_hat
+                i += y_.numel()
+
+            with torch.no_grad():
+                y_true_ = y_true_.to(trainer.device)
+                y_pred_ = y_pred_.to(trainer.device)
+                post_cc_max_dice = dice(y_true_, y_pred_).cpu().item()
+
+            return ap, max_dice, threshold, post_cc_max_dice
+        return ap, max_dice, threshold
+    return ap
 
 def test(_class_):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
