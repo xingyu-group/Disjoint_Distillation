@@ -195,7 +195,6 @@ def train(args):
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
         
         if (epoch + 1) % 10 == 0:
-            # auroc_px, auroc_sp = evaluation(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
             auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
             print('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}'.format(auroc_px, auroc_sp, ap, dice))
             
@@ -228,7 +227,7 @@ if __name__ == '__main__':
     parser.add_argument('--cutout', default=False, action='store')
     
     # take care every time
-    parser.add_argument('--dataset_name', default='BraTsDemo', choices=['hist_DIY', 'BraTs', 'BraTsDemo', 'RESC_average', 'BraTs'], action='store')
+    parser.add_argument('--dataset_name', default='BraTs', choices=['hist_DIY', 'BraTs', 'BraTsDemo', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['gaussianNoise', 'Cutpaste', 'randomShape', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument('--resume_training', default= False, action='store')
     
