@@ -24,5 +24,6 @@ combination of the generative and discriminative methods
 
 #### TODOs:
 - [ ] Test on the brain denoising baseline. see how the detection results are like
+ - [ ] Does the performance drop on DD caused by the lack of multi-modality image input?
 - [ ] Test the binary mask: soft label & hard label comparison
 - [ ] Try training the model with different augmentation techniques, see if it can boost the performance
