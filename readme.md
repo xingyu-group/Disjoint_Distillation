@@ -16,6 +16,8 @@ combination of the generative and discriminative methods
   - Epoch:59, Pixel Auroc:0.984, Sample Auroc:0.912, Average Precision:0.759, DICE:0.274
   - The performance boost only by chaning the dataset quantity, which proves the number of training sample is essential for the model
   - Also, the AP is 6% lower that DAE, but DICE is a lot lower.
+
+#### Visualizations
  
 
 #### TODOs:
