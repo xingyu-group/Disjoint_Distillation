@@ -18,6 +18,9 @@ from torchvision import transforms
 from tqdm import tqdm
 from torchvision.utils import save_image
 
+from training_src import train_with_DAE
+from utils import loss_function, cal_anomaly_map, setup_seed
+
 
 def count_parameters(model):
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
@@ -32,48 +35,7 @@ def get_data_transforms(size, isize):
         transforms.CenterCrop(isize),
         transforms.ToTensor()])
     return data_transforms, gt_transforms
-    
-def cal_anomaly_map(fs_list, ft_list, device, batch_size=8, out_size=256, amap_mode='mul'):
-    if amap_mode == 'mul':
-        # anomaly_map = np.ones([out_size, out_size])
-        anomaly_map = torch.ones([fs_list[0].shape[0], 1, out_size, out_size]).to(device)
-    else:
-        # anomaly_map = np.zeros([out_size, out_size])
-        anomaly_map = torch.zeros([fs_list[0].shape[0], 1, out_size, out_size]).to(device)
-    a_map_list = []
-    for i in range(len(ft_list)):
-        fs = fs_list[i]
-        ft = ft_list[i]
-        #fs_norm = F.normalize(fs, p=2)
-        #ft_norm = F.normalize(ft, p=2)
-        a_map = 1 - F.cosine_similarity(fs, ft)
-        a_map = torch.unsqueeze(a_map, dim=1)
-        a_map = F.interpolate(a_map, size=out_size, mode='bilinear', align_corners=True)
-        # a_map = a_map[0, 0, :, :].to('cpu').detach().numpy()
-        # a_map = a_map[0,0,:,:]
-        a_map_list.append(a_map)
-        if amap_mode == 'mul':
-            anomaly_map *= a_map
-        else:
-            anomaly_map += a_map
-    return anomaly_map, a_map_list
-
-def setup_seed(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    np.random.seed(seed)
-    random.seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-def loss_function(a, b):
-    #mse_loss = torch.nn.MSELoss()
-    cos_loss = torch.nn.CosineSimilarity()
-    loss = 0
-    # for item in len(a):
-    loss = torch.mean(1-cos_loss(a.view(a.shape[0],-1),
-                                      b.view(b.shape[0],-1)))
-    return loss
+ 
 
 
 def loss_concat(a, b):
@@ -126,6 +88,24 @@ def train(args):
     ckp_path = os.path.join(ckp_folder, 'last.pth')    
     results_path = os.path.join(ckp_folder, 'results.txt')    
     
+    encoder, bn = wide_resnet50_2(pretrained=True)
+    encoder = encoder.to(device)
+    bn = bn.to(device)
+    encoder.eval()
+    decoder = de_wide_resnet50_2(pretrained=False)
+    decoder = decoder.to(device)
+
+    encoder = torch.nn.DataParallel(encoder, device_ids=[0, 1])
+    bn = torch.nn.DataParallel(bn, device_ids=[0, 1])
+    decoder = torch.nn.DataParallel(decoder, device_ids=[0, 1])
+    
+    if args.resume_training:
+        bn.load_state_dict(torch.load(ckp_path)['bn'])
+        decoder.load_state_dict(torch.load(ckp_path)['decoder'])
+        # last_epoch = torch.load(ckp_path)['last_epoch']
+    
+    optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
+    
     if args.datasource == 'DIY':
         test_transform, _ = get_data_transforms(args.img_size, args.img_size)
         train_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='train', dirs = dirs, data_source=args.experiment_name, args = args)
@@ -137,24 +117,8 @@ def train(args):
         val_dataloader = torch.utils.data.DataLoader(val_data, batch_size = 1, shuffle = False)
         test_dataloader = torch.utils.data.DataLoader(test_data, batch_size = 1, shuffle = False)
         
-        encoder, bn = wide_resnet50_2(pretrained=True)
-        encoder = encoder.to(device)
-        bn = bn.to(device)
-        encoder.eval()
-        decoder = de_wide_resnet50_2(pretrained=False)
-        decoder = decoder.to(device)
-        
-        encoder = torch.nn.DataParallel(encoder, device_ids=[0, 1])
-        bn = torch.nn.DataParallel(bn, device_ids=[0, 1])
-        decoder = torch.nn.DataParallel(decoder, device_ids=[0, 1])
-        
         last_epoch = 0
-        if args.resume_training:
-            bn.load_state_dict(torch.load(ckp_path)['bn'])
-            decoder.load_state_dict(torch.load(ckp_path)['decoder'])
-            # last_epoch = torch.load(ckp_path)['last_epoch']
-            
-        optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
+
 
         for epoch in range(last_epoch, epochs):
             # auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
@@ -209,7 +173,7 @@ def train(args):
         return auroc_px, auroc_sp, ap, dice
     
     elif args.datasource == 'DAE':
-        train_with_DAE_data(device)
+        train_with_DAE(encoder, bn, decoder, optimizer, device,)
 
 
 
