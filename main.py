@@ -126,88 +126,90 @@ def train(args):
     ckp_path = os.path.join(ckp_folder, 'last.pth')    
     results_path = os.path.join(ckp_folder, 'results.txt')    
     
-    
-    test_transform, _ = get_data_transforms(args.img_size, args.img_size)
-    train_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='train', dirs = dirs, data_source=args.experiment_name, args = args)
-    val_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='test', dirs = dirs, data_source=args.experiment_name, args = args)
-    test_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='test', dirs = dirs, data_source=args.experiment_name, args = args, rgb=True)
-    
-    train_dataloader = torch.utils.data.DataLoader(train_data, batch_size = args.bs, shuffle=True)
-    # val_dataloader = torch.utils.data.DataLoader(val_data, batch_size = args.bs, shuffle = False)
-    val_dataloader = torch.utils.data.DataLoader(val_data, batch_size = 1, shuffle = False)
-    test_dataloader = torch.utils.data.DataLoader(test_data, batch_size = 1, shuffle = False)
-    
-    encoder, bn = wide_resnet50_2(pretrained=True)
-    encoder = encoder.to(device)
-    bn = bn.to(device)
-    encoder.eval()
-    decoder = de_wide_resnet50_2(pretrained=False)
-    decoder = decoder.to(device)
-    
-    encoder = torch.nn.DataParallel(encoder, device_ids=[0, 1])
-    bn = torch.nn.DataParallel(bn, device_ids=[0, 1])
-    decoder = torch.nn.DataParallel(decoder, device_ids=[0, 1])
-    
-    last_epoch = 0
-    if args.resume_training:
-        bn.load_state_dict(torch.load(ckp_path)['bn'])
-        decoder.load_state_dict(torch.load(ckp_path)['decoder'])
-        # last_epoch = torch.load(ckp_path)['last_epoch']
+    if args.datasource == 'DIY':
+        test_transform, _ = get_data_transforms(args.img_size, args.img_size)
+        train_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='train', dirs = dirs, data_source=args.experiment_name, args = args)
+        val_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='test', dirs = dirs, data_source=args.experiment_name, args = args)
+        test_data = MVTecDataset(root=main_path, transform = test_transform, gt_transform=gt_transform, phase='test', dirs = dirs, data_source=args.experiment_name, args = args, rgb=True)
         
-    optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
+        train_dataloader = torch.utils.data.DataLoader(train_data, batch_size = args.bs, shuffle=True)
+        # val_dataloader = torch.utils.data.DataLoader(val_data, batch_size = args.bs, shuffle = False)
+        val_dataloader = torch.utils.data.DataLoader(val_data, batch_size = 1, shuffle = False)
+        test_dataloader = torch.utils.data.DataLoader(test_data, batch_size = 1, shuffle = False)
+        
+        encoder, bn = wide_resnet50_2(pretrained=True)
+        encoder = encoder.to(device)
+        bn = bn.to(device)
+        encoder.eval()
+        decoder = de_wide_resnet50_2(pretrained=False)
+        decoder = decoder.to(device)
+        
+        encoder = torch.nn.DataParallel(encoder, device_ids=[0, 1])
+        bn = torch.nn.DataParallel(bn, device_ids=[0, 1])
+        decoder = torch.nn.DataParallel(decoder, device_ids=[0, 1])
+        
+        last_epoch = 0
+        if args.resume_training:
+            bn.load_state_dict(torch.load(ckp_path)['bn'])
+            decoder.load_state_dict(torch.load(ckp_path)['decoder'])
+            # last_epoch = torch.load(ckp_path)['last_epoch']
+            
+        optimizer = torch.optim.Adam(list(decoder.parameters())+list(bn.parameters()), lr=learning_rate, betas=(0.5,0.999))
 
-    for epoch in range(last_epoch, epochs):
-        # auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
-        
-        bn.train()
-        decoder.train()
-        loss_list = []
-        
-        for img, aug, anomaly_mask in tqdm(train_dataloader):
+        for epoch in range(last_epoch, epochs):
+            # auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
             
-            img = torch.reshape(img, (-1, 1, args.img_size, args.img_size))
-            aug = torch.reshape(aug, (-1, 1, args.img_size, args.img_size))
-            anomaly_mask = torch.reshape(anomaly_mask, (-1, 1, args.img_size, args.img_size))
+            bn.train()
+            decoder.train()
+            loss_list = []
             
-            # aug = aug.expand(3,*aug.shape[1:])
-            aug = torch.cat([aug, aug, aug], dim=1)
-            # img = img.to(device)
-            aug = aug.to(device)
-            anomaly_mask = anomaly_mask.to(device)
+            for img, aug, anomaly_mask in tqdm(train_dataloader):
+                
+                img = torch.reshape(img, (-1, 1, args.img_size, args.img_size))
+                aug = torch.reshape(aug, (-1, 1, args.img_size, args.img_size))
+                anomaly_mask = torch.reshape(anomaly_mask, (-1, 1, args.img_size, args.img_size))
+                
+                # aug = aug.expand(3,*aug.shape[1:])
+                aug = torch.cat([aug, aug, aug], dim=1)
+                # img = img.to(device)
+                aug = aug.to(device)
+                anomaly_mask = anomaly_mask.to(device)
+                
+                inputs = encoder(aug)
+                outputs = decoder(bn(inputs))
+                
+                anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size=args.bs)
+                
+                # Visualize the results
+                save_image(aug, 'aug.png')
+                save_image(img, 'img.png')
+                save_image(anomaly_mask, 'anomaly_mask.png')
+                save_image(anomaly_map, 'anomaly_map.png')
+                
+                loss = loss_function(anomaly_map, anomaly_mask)
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
+                loss_list.append(loss.item())
+                
+            print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
             
-            inputs = encoder(aug)
-            outputs = decoder(bn(inputs))
-            
-            anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size=args.bs)
-            
-            # Visualize the results
-            save_image(aug, 'aug.png')
-            save_image(img, 'img.png')
-            save_image(anomaly_mask, 'anomaly_mask.png')
-            save_image(anomaly_map, 'anomaly_map.png')
-            
-            loss = loss_function(anomaly_map, anomaly_mask)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            loss_list.append(loss.item())
-            
-        print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
-        
-        if (epoch + 1) % 10 == 0:
-            auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
-            print('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}'.format(auroc_px, auroc_sp, ap, dice))
-            
-            # save the checkpoints
-            torch.save({'bn': bn.state_dict(),
-                        'decoder': decoder.state_dict(),
-                        'last_epoch': epoch}, ckp_path)
-            
-            # Write the rsults
-            with open(results_path, 'a') as f:
-                f.writelines('Epoch:{}, Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(epoch, auroc_px, auroc_sp, ap, dice))
-    return auroc_px, auroc_sp, ap, dice
-
+            if (epoch + 1) % 10 == 0:
+                auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+                print('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}'.format(auroc_px, auroc_sp, ap, dice))
+                
+                # save the checkpoints
+                torch.save({'bn': bn.state_dict(),
+                            'decoder': decoder.state_dict(),
+                            'last_epoch': epoch}, ckp_path)
+                
+                # Write the rsults
+                with open(results_path, 'a') as f:
+                    f.writelines('Epoch:{}, Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(epoch, auroc_px, auroc_sp, ap, dice))
+        return auroc_px, auroc_sp, ap, dice
+    
+    elif args.datasource == 'DAE':
+        train_with_DAE_data(device)
 
 
 
@@ -228,6 +230,7 @@ if __name__ == '__main__':
     
     # take care every time
     parser.add_argument('--dataset_name', default='BraTs', choices=['hist_DIY', 'BraTs', 'BraTsDemo', 'RESC_average', 'BraTs'], action='store')
+    parser.add_argument('--datasource', default='DAE', choices=['DAE', 'DIY'], action='store')
     parser.add_argument('--augmentation_method', default= 'gaussian_noise', choices=['gaussianNoise', 'Cutpaste', 'randomShape', 'RESC_average', 'BraTs'], action='store')
     parser.add_argument('--resume_training', default= False, action='store')
     
@@ -237,8 +240,8 @@ if __name__ == '__main__':
     
     """TODOs
     1. Train with soft label (hard/soft label difference)
-    2. Adding the computation of average accuracy
-    3. Adding the computation of idea dice
+    # 2. Adding the computation of average accuracy
+    # 3. Adding the computation of idea dice
     4. Other augmentation methods?
     """
     
