@@ -1,6 +1,7 @@
 #  Copyright (C) 2022 Canon Medical Systems Corporation. All rights reserved
 from pathlib import Path
 import random
+import os
 
 import torch
 from torch.utils.data import Dataset
@@ -65,10 +66,9 @@ class BrainDataset(torch.utils.data.Dataset):
         assert split in ["train", "val", "test"]
 
         if dataset == "brats2021":
-            datapath = Path(__file__).parent.parent / "data" / "brats2021_preprocessed"
+            datapath = Path('/home/zhaoxiang/baselines/DenoisingAE') / "data" / "brats2021_preprocessed"
 
             path = datapath / f"npy_{split}"
-
         # Slice skip conditions:
         threshold = 0
         self.skip_tumour = lambda item: item[1].sum() > threshold
