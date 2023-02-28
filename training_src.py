@@ -15,6 +15,7 @@ from utils import cal_anomaly_map, loss_function
 from test_cos import evaluation_AP_DICE_DAE
 
 import torch
+from torchvision.utils import save_image
 import numpy as np
 
 def train_with_DAE(run_name, ckp_path, results_path, encoder, bn, decoder, optimizer, device, bs=32, split='train', dataset='brats2021', iteration_epoch=32, epochs=2100, res=16, std=0.2, img_size=128):
@@ -59,15 +60,22 @@ def train_with_DAE(run_name, ckp_path, results_path, encoder, bn, decoder, optim
             
             # to device
             Gaussian_img = Gaussian_img.to(device)
-            pseudo_anomaly_mask = pseudo_anomaly_mask.to(device)
+            pseudo_anomaly = pseudo_anomaly.to(device)
 
             # forward
             inputs = encoder(Gaussian_img)
             outputs = decoder(bn(inputs))
             anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size = bs, out_size=img_size)
             
+            # visualize
+            save_image(Gaussian_img, 'aug.png')
+            save_image(org, 'img.png')
+            save_image(pseudo_anomaly, 'anomaly_mask.png')
+            save_image(anomaly_map, 'anomaly_map.png')
+            
             # loss
-            loss = loss_function(anomaly_map, pseudo_anomaly_mask)
+            pseudo_anomaly = pseudo_anomaly.sum(dim=1, keepdim=True) 
+            loss = loss_function(anomaly_map, pseudo_anomaly)
             
             optimizer.zero_grad()
             loss.backward()
@@ -79,7 +87,7 @@ def train_with_DAE(run_name, ckp_path, results_path, encoder, bn, decoder, optim
             
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
         if (epoch + 1) % 5 == 0:
-            auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+            auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, test_dataloader, device, epoch, img_size)
             print('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}'.format(auroc_px, auroc_sp, ap, dice))
             
             # save the checkpoints

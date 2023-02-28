@@ -85,8 +85,8 @@ class BrainDataset(torch.utils.data.Dataset):
 
         assert ((n_tumour_patients is not None) or (n_healthy_patients is not None))
         self.n_tumour_patients = n_tumour_patients if n_tumour_patients is not None else len(patient_dirs)
-        self.n_healthy_patients = n_healthy_patients if n_healthy_patients is not None else 1 - self.n_tumour_patients
-        # self.n_healthy_patients = n_healthy_patients if n_healthy_patients is not None else len(patient_dirs) - self.n_tumour_patients
+        # self.n_healthy_patients = n_healthy_patients if n_healthy_patients is not None else 1 - self.n_tumour_patients
+        self.n_healthy_patients = n_healthy_patients if n_healthy_patients is not None else len(patient_dirs) - self.n_tumour_patients
 
         # Patients with tumours
         self.patient_datasets = [PatientDataset(patient_dirs[i], process_fun=process, id=i,
@@ -95,8 +95,8 @@ class BrainDataset(torch.utils.data.Dataset):
 
         # + only healthy slices from "healthy" patients
         self.patient_datasets += [PatientDataset(patient_dirs[i],
-                                                 skip_condition=self.skip_tumour if skip_tumour_s_in_healthy else None,
-                                                 process_fun=process, id=i) for i in range(self.n_tumour_patients, self.n_tumour_patients + self.n_healthy_patients)]
+                                                skip_condition=self.skip_tumour if skip_tumour_s_in_healthy else None,
+                                                process_fun=process, id=i) for i in range(self.n_tumour_patients, self.n_tumour_patients + self.n_healthy_patients)]
 
         self.dataset = ConcatDataset(self.patient_datasets)
 

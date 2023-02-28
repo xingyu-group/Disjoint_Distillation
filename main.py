@@ -64,7 +64,7 @@ def train(args):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     print(device)
     main_path = '/home/zhaoxiang/dataset/{}'.format(args.dataset_name)
-    run_name = args.experiment_name + '_' + args.dataset_name + '_' + args.augmentation_method
+    run_name = args.experiment_name + '_' + args.dataset_name + '_' + args.augmentation_method + '_' + args.datasource
     
     
     dirs = os.listdir(main_path)

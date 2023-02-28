@@ -251,7 +251,7 @@ def evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, dataloader, device, e
             cv2.imwrite('eval_img.png', img[0,0,:,:].to('cpu').detach().numpy()*255)
             cv2.imwrite('eval_gt.png', gt[0,0,:,:].to('cpu').detach().numpy()*255)
             cv2.imwrite('eval_pred.png', min_max_norm(anomaly_map))
-            if count % 100 == 0:
+            if count % 1000 == 0:
                 img_path = os.path.join(results_dir, '{}_img.png'.format(count))
                 gt_path = os.path.join(results_dir, '{}_gt.png'.format(count))
                 a_map_path = os.path.join(results_dir, '{}_a_map_{}.png'.format(count, epoch))
