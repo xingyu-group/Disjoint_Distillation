@@ -1,8 +1,10 @@
 """reimplement the DAE training loop
-1. load data with the DAE dataset and dataloader
-2. concat 3 modalities (originally 4).
-3. Add gaussian random noise
-4. implement disjoint distillation
+# 1. load data with the DAE dataset and dataloader
+# 2. concat 3 modalities (originally 4).
+# 3. Add gaussian random noise
+# 4. implement disjoint distillation
+5. Add testing Schemes
+5. Added validation steps
 5. (optional) make the number of modalities adjustable
 """
 
@@ -40,16 +42,19 @@ def train_with_DAE(encoder, bn, decoder, optimizer, device, bs=32, split='train'
             
             # data
             org = batch[0]
+            # Retrieve 3 channel
+            org = org[:,[0, 1, 3],:,:]
+            
             Gaussian_img, pseudo_anomaly, pseudo_anomaly_mask = add_Gaussian_noise(org, res, std, img_size)  
             
             # to device
             Gaussian_img = Gaussian_img.to(device)
             pseudo_anomaly_mask = pseudo_anomaly_mask.to(device)
-            
+
             # forward
             inputs = encoder(Gaussian_img)
             outputs = decoder(bn(inputs))
-            anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size = bs)
+            anomaly_map, _ = cal_anomaly_map(inputs, outputs, device=device, batch_size = bs, out_size=img_size)
             
             # loss
             loss = loss_function(anomaly_map, pseudo_anomaly_mask)

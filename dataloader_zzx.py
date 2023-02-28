@@ -38,7 +38,7 @@ def get_data_transforms(size, isize):
     return data_transforms, gt_transforms
 
 def add_Gaussian_noise(x, noise_res, noise_std, img_size):
-    x = x.unsqueeze(dim = 0)
+    # x = x.unsqueeze(dim = 0)
     ns = torch.normal(mean=torch.zeros(x.shape[0], x.shape[1], noise_res, noise_res), std=noise_std).to(x.device)
 
     ns = F.upsample_bilinear(ns, size=[img_size, img_size])
