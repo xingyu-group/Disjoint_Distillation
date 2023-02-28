@@ -173,7 +173,7 @@ def train(args):
         return auroc_px, auroc_sp, ap, dice
     
     elif args.datasource == 'DAE':
-        train_with_DAE(encoder, bn, decoder, optimizer, device,)
+        train_with_DAE(run_name, ckp_path, results_path, encoder, bn, decoder, optimizer, device,)
 
 
 

@@ -12,10 +12,12 @@ from data_DAE import BrainDataset
 from dataloader_zzx import add_Gaussian_noise
 
 from utils import cal_anomaly_map, loss_function
+from test_cos import evaluation_AP_DICE_DAE
 
 import torch
+import numpy as np
 
-def train_with_DAE(encoder, bn, decoder, optimizer, device, bs=32, split='train', dataset='brats2021', iteration_epoch=32, epochs=2100, res=16, std=0.2, img_size=128):
+def train_with_DAE(run_name, ckp_path, results_path, encoder, bn, decoder, optimizer, device, bs=32, split='train', dataset='brats2021', iteration_epoch=32, epochs=2100, res=16, std=0.2, img_size=128):
     # dd = BrainAEDataDescriptor(dataset="brats2021", n_train_patients=None, n_val_patients=None,
     #                            seed=seed, batch_size=batch_size)
     
@@ -28,9 +30,17 @@ def train_with_DAE(encoder, bn, decoder, optimizer, device, bs=32, split='train'
         seed=0
     )
     
+    test_data = BrainDataset(
+        dataset=dataset, 
+        split='test', 
+        n_tumour_patients=None, 
+        n_healthy_patients=0
+    )
+
+    
     train_dataloader = torch.utils.data.DataLoader(train_data, batch_size = bs, shuffle=True)
     # val_dataloader = torch.utils.data.DataLoader(val_data, batch_size = 1, shuffle = False)
-    # test_dataloader = torch.utils.data.DataLoader(test_data, batch_size = 1, shuffle = False)
+    test_dataloader = torch.utils.data.DataLoader(test_data, batch_size = 1, shuffle = False)
     
     # Start the training loop
     for epoch in range(epochs):
@@ -67,6 +77,19 @@ def train_with_DAE(encoder, bn, decoder, optimizer, device, bs=32, split='train'
             if iter >= iteration_epoch:
                 break
             
+        print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
+        if (epoch + 1) % 5 == 0:
+            auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, test_dataloader, device, epoch)
+            print('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}'.format(auroc_px, auroc_sp, ap, dice))
+            
+            # save the checkpoints
+            torch.save({'bn': bn.state_dict(),
+                        'decoder': decoder.state_dict(),
+                        'last_epoch': epoch}, ckp_path)
+            
+            # Write the rsults
+            with open(results_path, 'a') as f:
+                f.writelines('Epoch:{}, Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(epoch, auroc_px, auroc_sp, ap, dice))
     
     
   

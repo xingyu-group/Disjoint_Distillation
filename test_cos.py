@@ -219,6 +219,95 @@ def evaluation_AP_DICE(run_name, encoder, bn, decoder, dataloader, device, epoch
     return auroc_px, auroc_sp, ap, max_dice #, round(np.mean(aupro_list),3)
 
 
+def evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, dataloader, device, epoch, img_size, threshold=None, _class_=None):
+    bn.eval()
+    decoder.eval()
+    gt_list_px = []
+    pr_list_px = []
+    gt_list_sp = []
+    pr_list_sp = []
+    aupro_list = []
+    y_true_ = torch.zeros(img_size * img_size * len(dataloader), dtype=torch.half)
+    y_pred_ = torch.zeros(img_size * img_size * len(dataloader), dtype=torch.half)
+    
+    results_dir = os.path.join('/home/zhaoxiang/output_brain', run_name)
+    if not os.path.exists(results_dir):
+        os.mkdir(results_dir)
+    count = 0
+    i = 0
+    
+    
+    with torch.no_grad():
+        for batch in dataloader:
+            img = batch[0][:,[0, 1, 3], :, :]
+            gt = batch[1]
+            count += 1
+            img = img.to(device)
+            inputs = encoder(img)
+            outputs = decoder(bn(inputs))
+            anomaly_map, _ = cal_anomaly_map(inputs, outputs, img.shape[-1], amap_mode='a')
+            anomaly_map = gaussian_filter(anomaly_map, sigma=4)
+            
+            cv2.imwrite('eval_img.png', img[0,0,:,:].to('cpu').detach().numpy()*255)
+            cv2.imwrite('eval_gt.png', gt[0,0,:,:].to('cpu').detach().numpy()*255)
+            cv2.imwrite('eval_pred.png', min_max_norm(anomaly_map))
+            if count % 100 == 0:
+                img_path = os.path.join(results_dir, '{}_img.png'.format(count))
+                gt_path = os.path.join(results_dir, '{}_gt.png'.format(count))
+                a_map_path = os.path.join(results_dir, '{}_a_map_{}.png'.format(count, epoch))
+                cv2.imwrite(img_path, img[0,0,:,:].to('cpu').detach().numpy()*255)
+                cv2.imwrite(gt_path, gt[0,0,:,:].to('cpu').detach().numpy()*255)
+                cv2.imwrite(a_map_path, min_max_norm(anomaly_map))
+                
+            
+            gt[gt > 0.5] = 1
+            gt[gt <= 0.5] = 0 
+            
+            ## save the results for evaluation metrics
+            gt_list_px.extend(gt.cpu().numpy().astype(int).ravel())
+            pr_list_px.extend(anomaly_map.ravel())
+            gt_list_sp.append(np.max(gt.cpu().numpy().astype(int)))
+            pr_list_sp.append(np.max(anomaly_map))
+            
+            
+            y_ = gt.view(-1)
+            y_hat = torch.from_numpy(anomaly_map).reshape(-1)
+            # Use half precision to save space in RAM. Want to evaluate the whole dataset at once.
+            y_true_[i:i + y_.numel()] = y_.half()
+            y_pred_[i:i + y_hat.numel()] = y_hat.half()
+            i += y_.numel()
+            
+        ap = average_precision_score(y_true_, y_pred_)
+        # precision = precision_score(y_true_, y_pred_)
+        # recall = recall_score(y_true_, y_pred_)
+        
+        ## plot the precision / recall curve
+        precision, recall, thresholds = precision_recall_curve(y_true_, y_pred_)
+        fig, ax = plt.subplots()
+        ax.plot(recall, precision, color='purple')
+
+        #add axis labels to plot
+        ax.set_title('Precision-Recall Curve')
+        ax.set_ylabel('Precision')
+        ax.set_xlabel('Recall')
+
+        #display plot
+        plt.savefig('precision_recall_curve')
+
+        
+        # compute dice
+        dice_thresholds = [x / 1000 for x in range(1000)] if threshold is None else [threshold]
+        with torch.no_grad():
+            y_true_ = y_true_.to(device)
+            y_pred_ = y_pred_.to(device)
+            dices = [dice(y_true_ > 0.5, y_pred_ > x).cpu().item() for x in tqdm(dice_thresholds)]
+        max_dice, threshold = max(zip(dices, dice_thresholds), key=lambda x: x[0])
+
+        auroc_px = round(roc_auc_score(gt_list_px, pr_list_px), 3)
+        auroc_sp = round(roc_auc_score(gt_list_sp, pr_list_sp), 3)
+    return auroc_px, auroc_sp, ap, max_dice 
+
+
 
 def eval_anomalies_batched(trainer, dataset, get_scores, batch_size=32, threshold=None, get_y=lambda batch: batch[1],
                            return_dice=False, filter_cc=False):
