@@ -87,8 +87,8 @@ def train_with_DAE(run_name, ckp_path, results_path, encoder, bn, decoder, optim
             
         print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, epochs, np.mean(loss_list)))
         if (epoch + 1) % 5 == 0:
-            auroc_px, auroc_sp, ap, dice = evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, test_dataloader, device, epoch, img_size)
-            print('Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}'.format(auroc_px, auroc_sp, ap, dice))
+            ap, dice = evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, test_dataloader, device, epoch, img_size)
+            print('Average Precision:{:.3f}, DICE:{:.3f}'.format(ap, dice))
             
             # save the checkpoints
             torch.save({'bn': bn.state_dict(),
@@ -97,7 +97,7 @@ def train_with_DAE(run_name, ckp_path, results_path, encoder, bn, decoder, optim
             
             # Write the rsults
             with open(results_path, 'a') as f:
-                f.writelines('Epoch:{}, Pixel Auroc:{:.3f}, Sample Auroc:{:.3f}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(epoch, auroc_px, auroc_sp, ap, dice))
+                f.writelines('Epoch:{}, Average Precision:{:.3f}, DICE:{:.3f}\n'.format(epoch, ap, dice))
     
     
   

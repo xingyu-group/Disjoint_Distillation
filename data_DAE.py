@@ -85,6 +85,7 @@ class BrainDataset(torch.utils.data.Dataset):
 
         assert ((n_tumour_patients is not None) or (n_healthy_patients is not None))
         self.n_tumour_patients = n_tumour_patients if n_tumour_patients is not None else len(patient_dirs)
+        # self.n_tumour_patients = n_tumour_patients if n_tumour_patients is not None else 2
         # self.n_healthy_patients = n_healthy_patients if n_healthy_patients is not None else 1 - self.n_tumour_patients
         self.n_healthy_patients = n_healthy_patients if n_healthy_patients is not None else len(patient_dirs) - self.n_tumour_patients
 

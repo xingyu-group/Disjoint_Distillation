@@ -230,7 +230,7 @@ def evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, dataloader, device, e
     y_true_ = torch.zeros(img_size * img_size * len(dataloader), dtype=torch.half)
     y_pred_ = torch.zeros(img_size * img_size * len(dataloader), dtype=torch.half)
     
-    results_dir = os.path.join('/home/zhaoxiang/output_brain', run_name)
+    results_dir = os.path.join('/home/zhaoxiang/output_brain', run_name, str(epoch))
     if not os.path.exists(results_dir):
         os.mkdir(results_dir)
     count = 0
@@ -251,7 +251,7 @@ def evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, dataloader, device, e
             cv2.imwrite('eval_img.png', img[0,0,:,:].to('cpu').detach().numpy()*255)
             cv2.imwrite('eval_gt.png', gt[0,0,:,:].to('cpu').detach().numpy()*255)
             cv2.imwrite('eval_pred.png', min_max_norm(anomaly_map))
-            if count % 1000 == 0:
+            if count % 3000 == 0:
                 img_path = os.path.join(results_dir, '{}_img.png'.format(count))
                 gt_path = os.path.join(results_dir, '{}_gt.png'.format(count))
                 a_map_path = os.path.join(results_dir, '{}_a_map_{}.png'.format(count, epoch))
@@ -264,10 +264,10 @@ def evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, dataloader, device, e
             gt[gt <= 0.5] = 0 
             
             ## save the results for evaluation metrics
-            gt_list_px.extend(gt.cpu().numpy().astype(int).ravel())
-            pr_list_px.extend(anomaly_map.ravel())
-            gt_list_sp.append(np.max(gt.cpu().numpy().astype(int)))
-            pr_list_sp.append(np.max(anomaly_map))
+            # gt_list_px.extend(gt.cpu().numpy().astype(int).ravel())
+            # pr_list_px.extend(anomaly_map.ravel())
+            # gt_list_sp.append(np.max(gt.cpu().numpy().astype(int)))
+            # pr_list_sp.append(np.max(anomaly_map))
             
             
             y_ = gt.view(-1)
@@ -303,9 +303,10 @@ def evaluation_AP_DICE_DAE(run_name, encoder, bn, decoder, dataloader, device, e
             dices = [dice(y_true_ > 0.5, y_pred_ > x).cpu().item() for x in tqdm(dice_thresholds)]
         max_dice, threshold = max(zip(dices, dice_thresholds), key=lambda x: x[0])
 
-        auroc_px = round(roc_auc_score(gt_list_px, pr_list_px), 3)
-        auroc_sp = round(roc_auc_score(gt_list_sp, pr_list_sp), 3)
-    return auroc_px, auroc_sp, ap, max_dice 
+        # auroc_px = round(roc_auc_score(gt_list_px, pr_list_px), 3)
+        # auroc_sp = round(roc_auc_score(gt_list_sp, pr_list_sp), 3)
+    # return auroc_px, auroc_sp, ap, max_dice 
+    return ap, max_dice 
 
 
 
